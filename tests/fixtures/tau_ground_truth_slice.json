@@ -1,0 +1,28 @@
+[
+ {
+  "trajectory_id": 2,
+  "failures": [
+   {
+    "failure_id": 1,
+    "step_number": 3,
+    "step_reason": "At step 3, the assistant agent did not authenticate user information before proceeding to provide information about available t-shirts",
+    "failure_category": "Instruction Adherence Failure",
+    "category_reason": "The assistant agent did not follow the expected policy of authenticating user information before providing product details.",
+    "failed_agent": "Assistant"
+   },
+   {
+    "failure_id": 2,
+    "step_number": 7,
+    "step_reason": "At step 7, the agent did not correctly count the number of available t-shirts from the tool call result.",
+    "failure_category": "Misinterpretation of Tool Output",
+    "category_reason": "The assistant misinterpreted the output from the tool call, leading to an incorrect count of available t-shirts.",
+    "failed_agent": "Assistant"
+   }
+  ],
+  "root_cause": {
+   "failure_id": 2,
+   "reason_for_root_cause": "The assistant finally did authenticate before providing user specific information. The incorrect count does not correspond with ground truth output."
+  },
+  "failure_summary": "The agent did not correctly count the number of available t-shirts from the tool call result."
+ }
+]

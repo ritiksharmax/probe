@@ -1,0 +1,36 @@
+[
+ {
+  "trajectory_id": "5f982798-16b9-4051-ab57-cfc7ebdb2a91",
+  "failures": [
+   {
+    "failure_id": 1,
+    "step_number": 13,
+    "step_reason": "Websurfer could not  download a PDF file and search throught it which was an instruction given by Orchestrator.",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Instruction not followed, the agent did not download and search through the PDF file as instructed",
+    "failed_agent": "Websurfer"
+   },
+   {
+    "failure_id": 2,
+    "step_number": 17,
+    "step_reason": "Websurfer could not  download a PDF file and search throught it which was an instruction given by Orchestrator",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Websurfer could not  download a PDF file and search throught it which was an instruction given by Orchestrator",
+    "failed_agent": "Websurfer"
+   },
+   {
+    "failure_id": 3,
+    "step_number": 33,
+    "step_reason": "FileSurfer hallucinated. It downloaded the file at '/workspace/workspace/http:/export.arxiv.org/pdf/2007.xx' but later attempted to read a non-existent file 'file:///workspace/path_to_july_2020_paper.pdf'.",
+    "failure_category": "Invention of new information",
+    "category_reason": "FileSurfer hallucinated. It downloaded the file at '/workspace/workspace/http:/export.arxiv.org/pdf/2007.xx' but later attempted to read a non-existent file 'file:///workspace/path_to_july_2020_paper.pdf'.",
+    "failed_agent": "FileSurfer"
+   }
+  ],
+  "root_cause": {
+   "failure_id": 3,
+   "reason_for_root_cause": "The Orchestrator could tried to recover from earlier errors but the FileSurfer hallucination was a critical failure that prevented further progress."
+  },
+  "failure_summary": "The agent could not download and read the specified PDF file due to a hallucination by the FileSurfer agent."
+ }
+]

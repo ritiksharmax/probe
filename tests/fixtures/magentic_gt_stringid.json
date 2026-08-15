@@ -1,0 +1,452 @@
+[
+ {
+  "trajectory_id": "08cae58d-4084-4616-b6dd-dd6534e4825b",
+  "failures": [
+   {
+    "failure_id": 1,
+    "step_number": 5,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 2,
+    "step_number": 7,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 3,
+    "step_number": 10,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 4,
+    "step_number": 12,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 5,
+    "step_number": 14,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 6,
+    "step_number": 16,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 7,
+    "step_number": 18,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 8,
+    "step_number": 20,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 9,
+    "step_number": 22,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 10,
+    "step_number": 24,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 11,
+    "step_number": 26,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 12,
+    "step_number": 28,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 13,
+    "step_number": 30,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 14,
+    "step_number": 32,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 15,
+    "step_number": 37,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 16,
+    "step_number": 39,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 17,
+    "step_number": 41,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 18,
+    "step_number": 44,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 19,
+    "step_number": 46,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 20,
+    "step_number": 48,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 21,
+    "step_number": 50,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 22,
+    "step_number": 52,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 23,
+    "step_number": 54,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 24,
+    "step_number": 56,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 25,
+    "step_number": 58,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 26,
+    "step_number": 60,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 27,
+    "step_number": 62,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 28,
+    "step_number": 64,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 29,
+    "step_number": 66,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 30,
+    "step_number": 71,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 31,
+    "step_number": 73,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 32,
+    "step_number": 75,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 33,
+    "step_number": 77,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 34,
+    "step_number": 79,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 35,
+    "step_number": 81,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 36,
+    "step_number": 83,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 37,
+    "step_number": 85,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 38,
+    "step_number": 87,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 39,
+    "step_number": 89,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 40,
+    "step_number": 91,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 41,
+    "step_number": 93,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 42,
+    "step_number": 98,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 43,
+    "step_number": 100,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 44,
+    "step_number": 102,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 45,
+    "step_number": 104,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 46,
+    "step_number": 106,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 47,
+    "step_number": 108,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 48,
+    "step_number": 110,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 49,
+    "step_number": 112,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 50,
+    "step_number": 114,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 51,
+    "step_number": 116,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 52,
+    "step_number": 118,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 53,
+    "step_number": 120,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 54,
+    "step_number": 126,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   },
+   {
+    "failure_id": 55,
+    "step_number": 128,
+    "step_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failure_category": "Instruction/Plan Adherence Failure",
+    "category_reason": "Was not able to search for historical stock prices of apple when it first went above $50",
+    "failed_agent": "WebSurfer"
+   }
+  ],
+  "root_cause": {
+   "failure_id": "1",
+   "reason_for_root_cause": "The Websurfer was not able to find historical stock prices of Apple when it first went above $50, leading to repeated failures in adhering to the instruction throughout the trajectory. The first failure set the precedent for subsequent failures."
+  },
+  "failure_summary": "The Websurfer agent consistently failed to retrieve historical stock prices of Apple when it first exceeded $50, resulting in multiple instruction adherence failures throughout the trajectory."
+ }
+]
