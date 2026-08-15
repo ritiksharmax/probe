@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -13,7 +14,8 @@ from protocol import (  # noqa: E402
     AnnotatedFailure,
     GroundTruthEntry,
     Prediction,
-    aggregate_seeds,
+    aggregate_repeats,
+    as_records,
     load_ground_truth,
     score,
     score_detection,
@@ -165,19 +167,51 @@ class TestDetectionScoring:
         assert result["n_positive"] == 0
 
 
-def test_aggregate_seeds_reports_mean_and_spread(tau_gt):
+def test_aggregate_repeats_reports_mean_and_spread(tau_gt):
     runs = [
         score([Prediction("2", step=s, category=None)], tau_gt, domain="d", system="s")
         for s in (tau_gt["2"].critical_step, tau_gt["2"].critical_step + 9)
     ]
-    agg = aggregate_seeds(runs)
-    assert agg["localization"][0]["mean"] == 0.5
-    assert agg["localization"][0]["std"] > 0
-    assert agg["localization"][0]["n_seeds"] == 2
+    row = aggregate_repeats(runs)
+    assert row["exact"] == 0.5
+    assert row["exact_std"] > 0
+    assert row["repeats"] == 2
+    assert row["exact_per_repeat"] == [1.0, 0.0]
 
 
-def test_aggregate_seeds_empty():
-    assert aggregate_seeds([]) == {}
+def test_aggregate_repeats_empty():
+    assert aggregate_repeats([]) == {}
+
+
+class TestRepeatsCannotHideAFailure:
+    """A failure in any repeat must reach the row, not just a failure in the first.
+
+    The old aggregator took `err` off repeat 1 and overwrote only the accuracies,
+    so a dead endpoint during repeat 2 or 3 depressed the mean while the row still
+    reported zero errors -- numbers that look clean and are not.
+    """
+
+    def _runs(self, tau_gt, error_on):
+        runs = []
+        for i in range(3):
+            pred = (
+                Prediction("2", step=None, category=None, error="connection refused")
+                if i == error_on
+                else Prediction("2", step=tau_gt["2"].critical_step, category=None)
+            )
+            runs.append(score([pred], tau_gt, domain="d", system="s"))
+        return runs
+
+    @pytest.mark.parametrize("error_on", [0, 1, 2])
+    def test_error_in_any_repeat_is_counted(self, tau_gt, error_on):
+        row = aggregate_repeats(self._runs(tau_gt, error_on))
+        assert row["err"] == 1, f"failure in repeat {error_on + 1} vanished from the row"
+        assert row["err_per_repeat"][error_on] == 1
+
+    def test_surviving_repeats_are_recoverable(self, tau_gt):
+        """A contaminated repeat must not force re-running the clean ones."""
+        row = aggregate_repeats(self._runs(tau_gt, error_on=0))
+        assert row["exact_per_repeat"] == [0.0, 1.0, 1.0]
 
 
 class TestErrorAccounting:
@@ -276,3 +310,34 @@ class TestWindowRecall:
         # The judge happened to be right, but it could not have seen the step --
         # which is exactly why the ceiling is reported alongside the accuracy.
         assert result.localization[0] == 1.0
+
+
+class TestPredictionRecords:
+    """Per-trajectory records, so a post-hoc question does not cost another run.
+
+    Aggregates cannot say *why* a system scored as it did -- whether a violation
+    log pushes attribution toward the categories its own signals name, for
+    instance. That question was asked here and could not be answered without
+    re-running the whole benchmark.
+    """
+
+    def test_pairs_each_prediction_with_its_target(self, tau_gt):
+        gt = tau_gt["2"]
+        records = as_records([Prediction("2", step=99, category=4)], tau_gt)
+        assert len(records) == 1
+        assert records[0]["pred_step"] == 99
+        assert records[0]["pred_case"] == 4
+        assert records[0]["gt_step"] == gt.critical_step
+        assert records[0]["gt_case"] == gt.root_cause_case
+
+    def test_failed_diagnoses_keep_their_error(self, tau_gt):
+        records = as_records([Prediction("2", None, None, error="refused")], tau_gt)
+        assert records[0]["error"] == "refused"
+        assert records[0]["pred_step"] is None
+
+    def test_unannotated_trajectories_are_dropped(self, tau_gt):
+        assert as_records([Prediction("not-in-gt", step=1, category=1)], tau_gt) == []
+
+    def test_windows_survive_json_round_trip(self, tau_gt):
+        records = as_records([Prediction("2", step=1, category=1, windows=((3, 9),))], tau_gt)
+        assert json.loads(json.dumps(records))[0]["windows"] == [[3, 9]]

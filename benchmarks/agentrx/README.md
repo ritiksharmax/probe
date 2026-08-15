@@ -139,11 +139,65 @@ Upstream resolves the root cause with a strict `f["failure_id"] == root_cause["f
 
 Data is pinned to commit `f228165bfec60a801fd5fedd9d8ffe0f9de0c69d` and cached under `.cache/`. Bump `AGENTRX_SHA` in `fetch.py` deliberately, and re-run when you do.
 
-Judges are non-deterministic, so treat a single run's accuracy as a point estimate; `protocol.aggregate_seeds` reports mean ± population std across repeated runs of the same configuration.
+Judges are non-deterministic, so treat a single run's accuracy as a point estimate. `--repeats N` re-runs each configuration and `protocol.aggregate_repeats` reports mean ± population std. Requests are identical across repeats (temperature 0), so what this measures is **serving non-determinism** — the run-to-run floor any claimed difference has to clear — not sampling variance.
+
+Every results file records the probe commit, whether the tree was dirty, the argv and the config alongside the data SHA. A results file that cannot be attributed to a commit cannot be defended, and `results/` is tracked for the same reason.
+
+Read a finished run back with the reporter rather than eyeballing the table — it excludes contaminated rows from the pooled numbers instead of averaging them in, refuses to pool a system across a domain it has no valid row for, and restates every spread in trajectories:
+
+```bash
+uv run python benchmarks/agentrx/report.py benchmarks/agentrx/results/clean-repeats3.json
+```
 
 ## Results
 
-Not filled in yet — the localization and attribution table needs model access. Detection and the LLM-free floor run today:
+### Localization and attribution — the honest read
+
+3 repeats per configuration, `qwen3-4b-thinking`, all 73 public trajectories. **PROBE's filtering does not improve localization. The plain prompting baseline wins.**
+
+Pooled over both domains (n=73):
+
+| system | exact | ±5 | cat(rc) | tokens/diagnosis |
+|---|---:|---:|---:|---:|
+| `naive-full` | **0.187** | 0.461 | 0.128 | 7,837 |
+| `agentrx-style` | 0.128 | **0.466** | 0.132 | 8,226 |
+| `filtered-only` | 0.123 | 0.443 | **0.146** | **6,197** |
+| `probe` | 0.110 | 0.470 | 0.100 | 7,065 |
+| `signals-only` | 0.096 | 0.315 | 0.000 | 0 |
+
+`naive-full` — whole trajectory, no violation log, the thing PROBE was supposed to beat — leads exact localization by 0.06–0.08 over every system that adds machinery. That gap is 4–6 trajectories against a pooled spread of 0.011–0.037, and it is the one ordering in this table that reproduces.
+
+**Almost nothing else here does.** Two independent 3-repeat runs of the identical configuration rank the systems differently:
+
+| ranking | run A | run B |
+|---|---|---|
+| τ exact | naive-full > agentrx-style > probe | agentrx-style > naive-full > probe |
+| τ cat(rc) | **agentrx-style** > probe > naive-full | filtered-only > naive-full > probe > **agentrx-style** |
+| Magentic exact | probe > agentrx-style | naive-full > filtered-only > signals-only > probe > agentrx-style |
+
+`agentrx-style` is *first* on τ attribution in run A and *last* in run B. An earlier version of this section claimed "the violation log helps attribution" on the strength of run A, where it led in both domains. **That is withdrawn too** — run B inverts it on τ, and the whole τ attribution field spans 0.103–0.138, a range of exactly one trajectory. At n=29 no attribution ordering is measurable.
+
+Reproduce the run A vs run B comparison above directly:
+
+```bash
+uv run python benchmarks/agentrx/report.py \
+  benchmarks/agentrx/results/clean-repeats3.json \
+  --compare benchmarks/agentrx/results/qwen3-seeds3.json
+```
+
+An ordering that differs between two runs of the same configuration is noise, regardless of how clean either looked alone.
+
+What survives:
+
+1. **`naive-full` leads localization** — reproduces, and is the only claim here with a gap larger than its spread.
+2. **A judge beats the LLM-free floor on ±5 but barely on exact** — `signals-only` scores 0.096 exact against `probe`'s 0.110. Most of what the judge buys is proximity, not precision.
+3. **Filtering is cheaper, not better** — `filtered-only` uses the fewest tokens of any judged system (6,197 vs `agentrx-style`'s 8,226, ~25% less) at statistically indistinguishable accuracy. Read that as "the filter is free", not "the filter helps". The `$` column reads `0.0000` for a self-hosted model, so judge cost by the token column.
+
+A prior single-run A/B of the signal caveat was reported as "more than doubling" τ exact match (0.103 → 0.241). **Withdrawn**: one run per arm against this noise floor, and the control systems — which cannot see the caveat at all — moved just as much between the same two runs. `--no-signal-caveat` now makes that ablation reproducible from a commit; it needs re-running with repeats before any number is quoted.
+
+### Detection and the LLM-free floor
+
+These need no model access:
 
 | metric | τ-retail | Magentic-One |
 |---|---|---|

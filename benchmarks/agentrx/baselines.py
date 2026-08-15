@@ -112,7 +112,11 @@ class SignalsOnlySystem:
 
 
 def build_system(
-    spec: SystemSpec, client: LLMClient | None, tier: str = "", max_tokens: int = 8192
+    spec: SystemSpec,
+    client: LLMClient | None,
+    tier: str = "",
+    max_tokens: int = 8192,
+    signal_caveat: bool = True,
 ):
     """Instantiate a system from its spec."""
     if not spec.uses_llm:
@@ -123,6 +127,7 @@ def build_system(
         client,
         mode=spec.mode,  # type: ignore[arg-type]
         include_violations=spec.include_violations,
+        include_signal_caveat=signal_caveat,
         tier=tier,
         max_tokens=max_tokens,
     )

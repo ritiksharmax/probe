@@ -302,8 +302,14 @@ class TestSignalCaveat:
 
     Measured on the benchmark data, the nearest signal sits a median of 6-8 steps
     *after* the annotated root cause, so a bare list of signal locations anchors
-    the judge on the wrong steps. Adding this framing more than doubled
-    exact-match localization on tau-retail (0.103 -> 0.241).
+    the judge on the wrong steps -- which is the rationale for the framing.
+
+    Its measured effect is *not* settled. A single-run A/B showed tau-retail exact
+    match going 0.103 -> 0.241 and was reported as "more than doubled"; that was
+    withdrawn. Repeated runs put the run-to-run spread at +/-1.6-1.9 trajectories
+    per domain, and the observed swing was 3 trajectories split across two domains
+    in opposite directions. Treat the caveat as unquantified until the ablation is
+    re-run via `--no-signal-caveat` with repeats.
     """
 
     def test_violation_log_explains_that_signals_are_symptoms(self):
@@ -323,3 +329,15 @@ class TestSignalCaveat:
         prompt, _, _ = judge.build_prompt(traj, run_signals(traj, default_signals()))
         assert "Violation log" not in prompt
         assert "symptoms" not in prompt
+
+    def test_caveat_can_be_ablated_without_editing_the_source(self):
+        """The 'without' arm has to come from a flag, or it pins to no commit."""
+        traj = failing_trajectory()
+        from probe.signals.base import default_signals, run_signals
+
+        events = run_signals(traj, default_signals())
+        judge = RCAJudge(FakeClient(responses=[answer()]), mode="full", include_signal_caveat=False)
+        prompt, _, _ = judge.build_prompt(traj, events)
+        assert "Violation log" in prompt, "the log itself must survive the ablation"
+        assert "symptoms" not in prompt
+        assert "EARLIER" not in prompt

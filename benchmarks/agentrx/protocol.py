@@ -206,11 +206,21 @@ class DomainScore:
     mean_latency_s: float = 0.0
 
     def as_row(self) -> dict[str, Any]:
+        # `tok` is in+out per diagnosis. It is redundant with the two token
+        # columns but not with `cost_usd`, which reads 0.0000 for a self-hosted
+        # model -- so without it the efficiency comparison is invisible in the
+        # table on exactly the runs where efficiency is the point.
+        per = (
+            round((self.prompt_tokens + self.completion_tokens) / self.n_scored)
+            if self.n_scored
+            else None
+        )
         return {
             "domain": self.domain,
             "system": self.system,
             "n": self.n_scored,
             "err": self.n_errors,
+            "tok": per,
             "exact": self.localization.get(0),
             "±1": self.localization.get(1),
             "±3": self.localization.get(3),
@@ -223,6 +233,37 @@ class DomainScore:
             "cost_usd": round(self.cost_usd, 4),
             "latency_s": round(self.mean_latency_s, 2),
         }
+
+
+def as_records(
+    predictions: Iterable[Prediction],
+    ground_truth: dict[str, GroundTruthEntry],
+) -> list[dict[str, Any]]:
+    """Per-trajectory predictions paired with their targets, for post-hoc analysis.
+
+    Aggregates alone cannot answer *why* a system scored as it did -- whether a
+    violation log pushes attribution toward the categories its signals name, say,
+    or which trajectories a filter's windows missed. Without these, every such
+    question costs another full run of the benchmark.
+    """
+    records = []
+    for pred in predictions:
+        gt = ground_truth.get(pred.trajectory_id)
+        if gt is None:
+            continue
+        records.append(
+            {
+                "trajectory_id": pred.trajectory_id,
+                "pred_step": pred.step,
+                "pred_case": pred.case,
+                "gt_step": gt.critical_step,
+                "gt_case": gt.root_cause_case,
+                "gt_all_cases": sorted(gt.all_cases),
+                "windows": [list(w) for w in pred.windows],
+                "error": pred.error,
+            }
+        )
+    return records
 
 
 def score(
@@ -336,32 +377,51 @@ def score_detection(
     }
 
 
-def aggregate_seeds(scores: Sequence[DomainScore]) -> dict[str, Any]:
-    """Mean and population std across repeated seeds of the same configuration.
+# Averaged across repeats. `err` is deliberately absent: it is summed, because
+# the question it answers is "did anything fail anywhere in this row".
+_MEAN_KEYS: tuple[str, ...] = (
+    "exact",
+    "±1",
+    "±3",
+    "±5",
+    "root_cause_cat",
+    "any_cat",
+    "win_rec",
+    "in_tok",
+    "out_tok",
+    "tok",
+    "cost_usd",
+    "latency_s",
+)
 
-    Judges are non-deterministic; a single run's accuracy is not a stable number,
-    so the harness runs several seeds and reports spread, as upstream does.
+
+def aggregate_repeats(scores: Sequence[DomainScore]) -> dict[str, Any]:
+    """Collapse repeated runs of one configuration into a single table row.
+
+    Every field is aggregated over all repeats. Taking the metadata off the first
+    run instead -- which this used to do, overwriting only the accuracies -- hides
+    a failure in any *later* repeat: the mean quietly absorbs its wrong answers
+    while `err` still reports the first run's zero, so a contaminated row looks
+    clean. That happened here: a run lost 24 of 44 diagnoses in repeat 1 of one
+    row and was only caught because it was repeat 1.
+
+    Per-repeat accuracies are kept so a partially contaminated row can be salvaged
+    from the surviving repeats instead of forcing a full re-run.
     """
     if not scores:
         return {}
 
-    def spread(values: Sequence[float]) -> dict[str, float]:
-        return {
-            "mean": statistics.fmean(values),
-            "std": statistics.pstdev(values) if len(values) > 1 else 0.0,
-            "n_seeds": len(values),
-        }
+    rows = [s.as_row() for s in scores]
+    row = dict(rows[0])
 
-    return {
-        "domain": scores[0].domain,
-        "system": scores[0].system,
-        "localization": {
-            tol: spread([s.localization.get(tol, 0.0) for s in scores]) for tol in TOLERANCES
-        },
-        "attribution": {
-            key: spread([s.attribution.get(key, 0.0) for s in scores])
-            for key in ("root_cause", "any", "earliest", "terminal")
-        },
-        "cost_usd": spread([s.cost_usd for s in scores]),
-        "latency_s": spread([s.mean_latency_s for s in scores]),
-    }
+    for key in _MEAN_KEYS:
+        values = [r[key] for r in rows if r.get(key) is not None]
+        row[key] = statistics.fmean(values) if values else None
+
+    exact = [r["exact"] for r in rows if r.get("exact") is not None]
+    row["err"] = sum(r.get("err") or 0 for r in rows)
+    row["repeats"] = len(rows)
+    row["exact_std"] = statistics.pstdev(exact) if len(exact) > 1 else 0.0
+    row["exact_per_repeat"] = exact
+    row["err_per_repeat"] = [r.get("err") or 0 for r in rows]
+    return row

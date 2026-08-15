@@ -8,4 +8,4 @@ dist/
 build/
 benchmarks/agentrx/.cache/
 .local/
-benchmarks/agentrx/results/
+benchmarks/agentrx/results/*.log

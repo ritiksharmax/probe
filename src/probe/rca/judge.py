@@ -100,6 +100,7 @@ class RCAJudge:
         max_repairs: int = 2,
         max_tokens: int = 8192,
         include_violations: bool = True,
+        include_signal_caveat: bool = True,
     ) -> None:
         self.client = client
         self.mode = mode
@@ -114,6 +115,11 @@ class RCAJudge:
         # "filtered + violations" beating "full, no violations" would be a result
         # with two possible explanations.
         self.include_violations = include_violations
+        # A flag, not a source edit, because the caveat's effect is itself a
+        # result worth measuring and re-measuring. The first A/B of it was run by
+        # hand-editing this string, which left the "without" arm unreproducible
+        # from any commit.
+        self.include_signal_caveat = include_signal_caveat
 
     # ------------------------------------------------------------------ prompt
 
@@ -130,12 +136,8 @@ class RCAJudge:
             parts.append(f"## Domain policy (excerpt)\n{_clip(task.policy, 2000)}")
 
         if events and self.include_violations:
-            parts.append(
-                "## Violation log\n"
-                + _SIGNAL_CAVEAT
-                + "\n"
-                + _render_violations(events)
-            )
+            preamble = _SIGNAL_CAVEAT + "\n" if self.include_signal_caveat else ""
+            parts.append("## Violation log\n" + preamble + _render_violations(events))
 
         if self.mode == "filtered":
             windows = self.filter.windows(trajectory, events)

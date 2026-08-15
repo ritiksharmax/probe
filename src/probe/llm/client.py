@@ -272,7 +272,7 @@ class OpenAICompatibleClient:
         timeout: float = 300.0,
         temperature: float = 0.0,
         structured_output: bool = True,
-        max_retries: int = 4,
+        max_retries: int = 13,
     ) -> None:
         self.model = model
         self.base_url = (
@@ -291,6 +291,12 @@ class OpenAICompatibleClient:
         # balancer 503s. Without retries a single blip silently voids an entire
         # benchmark run -- which is exactly how one run here lost 251 of 292
         # calls to a dead SSH tunnel and reported zeros as if they were results.
+        # Backoff is 2**attempt capped at 30s, so the default spans ~4.5 minutes
+        # (1+2+4+8+16 then eight 30s waits). Sized against two real outages here:
+        # an SSH tunnel to the model host dropped and its keep-alive took longer
+        # than a 2-minute window to reconnect, which cost one benchmark row 24 of
+        # 44 diagnoses. Retrying is far cheaper than re-running an hour of GPU
+        # time, so a generous window is the right default for unattended runs.
         self.max_retries = max_retries
 
     _RETRY_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
