@@ -2,7 +2,23 @@
 
 **P**roduction **R**oot-cause **O**bservation & **B**ehavioral **E**valuation — detect, localize, and explain AI-agent failures from production execution traces, without ground-truth trajectories.
 
-> **Status: milestone 1, in progress.** The detection and evidence-filtering layers are built and measured on real benchmark data. The localization/attribution comparison table needs model access and is not filled in yet.
+[![CI](https://github.com/ritiksharmax/probe/actions/workflows/ci.yml/badge.svg)](https://github.com/ritiksharmax/probe/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+
+> [!IMPORTANT]
+> **Milestone 1 is built and benchmarked — and the headline result is a negative one.** On the public [AgentRx](https://github.com/microsoft/AgentRx) data, PROBE's evidence filtering does not beat a plain full-trajectory judge on localization; the naive baseline wins. Filtering *is* ~25% cheaper at indistinguishable accuracy, and two of the ordering claims in earlier drafts of these docs were withdrawn after a second run reversed them. Read [Results](#results) before trusting any number below it — this project treats a single benchmark run as a point estimate, not a finding.
+
+## Contents
+
+- [What it does](#what-it-does)
+- [Why it is different](#why-it-is-different)
+- [Ingestion](#ingestion)
+- [Install](#install)
+- [Use](#use)
+- [Results](#results)
+- [Development](#development)
+- [License](#license)
 
 ## What it does
 
@@ -12,17 +28,27 @@ Point PROBE at an agent trace and it answers three questions:
 2. **Where did it go wrong?** — the critical step, via a signal-density prior ensembled with an LLM judge.
 3. **Why?** — a root cause from a 10-category taxonomy, with supporting evidence and a counterfactual.
 
-```
-adapter → Trajectory → signals → detector → evidence filter → localizer + RCA judge → RCAReport
+```mermaid
+flowchart LR
+    A[adapter] --> B[Trajectory]
+    B --> C[signals]
+    C --> D[detector]
+    D --> E[evidence filter]
+    E --> F["localizer +<br/>RCA judge"]
+    F --> G[RCAReport]
 ```
 
 ## Why it is different
 
 The closest prior work is Microsoft's [AgentRx](https://github.com/microsoft/AgentRx). PROBE targets three gaps in it:
 
-- **Detection.** AgentRx assumes you already know the run failed. PROBE finds failures in the first place, which is what production actually needs.
-- **Cost.** AgentRx judges with GPT-5 over the full trajectory. PROBE filters the trajectory down to a few suspect evidence windows first, so a small local model can attempt the diagnosis. *(This is the weakest of the three claims right now — see Results.)*
-- **Production ingestion.** PROBE reads OpenTelemetry GenAI spans (and OpenInference), Langfuse, and LangSmith exports, not just benchmark files.
+| | AgentRx | PROBE |
+|---|---|---|
+| **Detection** | Assumes you already know the run failed | Finds failures in the first place, from cheap signals — what production actually needs |
+| **Cost** | Judges with GPT-5 over the full trajectory | Filters to a few suspect evidence windows first, so a small local model can attempt the diagnosis |
+| **Ingestion** | Benchmark files only | Reads OpenTelemetry GenAI spans (and OpenInference), Langfuse, and LangSmith exports |
+
+The cost claim is measured, not assumed: filtering buys **~25% fewer tokens and no accuracy gain**. It is a cost claim, not a quality one — see [Results](#results).
 
 ## Ingestion
 
@@ -83,11 +109,13 @@ detector = Detector(signals=[*default_signals(), ConstraintSignal(constraints)])
 
 `examples/demo_agent.py` shows the difference this makes: a refund of $200 against a $20 order scores **0.00** with the default battery and **0.90** with constraints, while the healthy run stays at 0.00.
 
-## Results so far
+## Results
 
-Measured on the public AgentRx data — 73 trajectories (τ-retail 29, Magentic-One 44). See [`benchmarks/agentrx/README.md`](benchmarks/agentrx/README.md) for methodology and an important scope caveat: the Flash domain is unpublished, so this is **not** the paper's 115-trajectory aggregate.
+Measured on the public AgentRx data — 73 trajectories (τ-retail 29, Magentic-One 44). See [`benchmarks/agentrx/README.md`](benchmarks/agentrx/README.md) for full methodology, error bars, and a cross-run comparison tool; it also covers an important scope caveat — the Flash domain is unpublished, so nothing here is the paper's 115-trajectory aggregate.
 
-**Detection (H1)** — τ-retail, 29 annotated failures vs 73 successful runs:
+### Detection (H1)
+
+τ-retail, 29 annotated failures vs 73 successful runs:
 
 | | recall | false-positive rate |
 |---|---:|---:|
@@ -96,7 +124,9 @@ Measured on the public AgentRx data — 73 trajectories (τ-retail 29, Magentic-
 
 Calibration cuts false positives by a third. Numbers are cross-validated — a naive-Bayes fit reported on its own training data at n=29 would be meaningless.
 
-**Localization floor** — `signals-only`, no LLM:
+### Localization floor
+
+`signals-only`, no LLM:
 
 | | exact | ±1 | ±5 |
 |---|---:|---:|---:|
@@ -105,11 +135,30 @@ Calibration cuts false positives by a third. Numbers are cross-validated — a n
 
 On τ-retail this beats the trivial last-step and midpoint baselines at every tolerance. **On Magentic-One it loses to picking the last step** — Magentic trajectories are flat prose with no parsed tool calls, so every tool-level signal is blind there. That is a known gap, not a tuned result.
 
+### Localization and attribution (H2/H3)
+
+3 repeats per configuration, `qwen3-4b-thinking`, pooled over all 73 trajectories:
+
+| system | exact | ±5 | cat(rc) | tokens/diagnosis |
+|---|---:|---:|---:|---:|
+| `naive-full` | **0.187** | 0.461 | 0.128 | 7,837 |
+| `agentrx-style` | 0.128 | **0.466** | 0.132 | 8,226 |
+| `filtered-only` | 0.123 | 0.443 | **0.146** | **6,197** |
+| `probe` | 0.110 | 0.470 | 0.100 | 7,065 |
+| `signals-only` | 0.096 | 0.315 | 0.000 | 0 |
+
+> [!WARNING]
+> **PROBE's filtering does not improve localization.** `naive-full` — whole trajectory, no violation log, the baseline all this machinery was supposed to beat — leads exact match by 4–6 trajectories, the only gap here wider than its own spread.
+>
+> Worse for the rest of the table: two independent 3-repeat runs of the *same* configuration rank the systems differently. `agentrx-style` is first on τ attribution in one run and last in the other. The entire τ attribution field spans one trajectory, so at n=29 those orderings are not measurable at all. An earlier version of these docs claimed the violation log helps attribution; **that is withdrawn.**
+
+What holds up: the judge beats the LLM-free floor mostly on *proximity* (±5 0.470 vs 0.315) rather than precision (exact 0.110 vs 0.096), and filtering is **~25% cheaper** at indistinguishable accuracy. Read that as "the filter is free," not "the filter is better."
+
 ## Development
 
 ```bash
 uv venv && uv pip install -e ".[dev,bench]"
-uv run pytest          # 216 tests, fully offline — no network, no API key
+uv run pytest          # 313 tests, fully offline — no network, no API key
 uv run ruff check .
 uv run python examples/demo_agent.py
 ```
@@ -118,4 +167,4 @@ The test suite never touches the network. Benchmark data is fetched separately a
 
 ## License
 
-MIT
+[MIT](LICENSE)
