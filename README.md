@@ -21,8 +21,20 @@ adapter → Trajectory → signals → detector → evidence filter → localize
 The closest prior work is Microsoft's [AgentRx](https://github.com/microsoft/AgentRx). PROBE targets three gaps in it:
 
 - **Detection.** AgentRx assumes you already know the run failed. PROBE finds failures in the first place, which is what production actually needs.
-- **Cost.** AgentRx judges with GPT-5 over the full trajectory. PROBE filters the trajectory down to a few suspect evidence windows first — **16–21% of the steps** on the benchmark — which should raise signal-to-noise enough that a small local model can do the diagnosis.
-- **Production ingestion.** PROBE reads OpenTelemetry GenAI spans, Langfuse, and LangSmith exports, not just benchmark files. *(These adapters are planned; the canonical JSONL and AgentRx adapters are built.)*
+- **Cost.** AgentRx judges with GPT-5 over the full trajectory. PROBE filters the trajectory down to a few suspect evidence windows first, so a small local model can attempt the diagnosis. *(This is the weakest of the three claims right now — see Results.)*
+- **Production ingestion.** PROBE reads OpenTelemetry GenAI spans (and OpenInference), Langfuse, and LangSmith exports, not just benchmark files.
+
+## Ingestion
+
+| Adapter | Source |
+|---|---|
+| `jsonl` | PROBE's canonical schema (default) |
+| `otel` | OTLP/JSON — OTel GenAI semconv **and** OpenInference attributes |
+| `langfuse` | Langfuse trace/observation export |
+| `langsmith` | LangSmith run export, including nested `child_runs` |
+| `agentrx` | The AgentRx benchmark's τ-retail and Magentic-One formats |
+
+Every adapter emits the same `Trajectory`, with steps **chronological and 1-based** regardless of the order records arrived in.
 
 ## Install
 

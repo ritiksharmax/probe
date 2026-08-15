@@ -1,0 +1,203 @@
+{
+ "resourceSpans": [
+  {
+   "scopeSpans": [
+    {
+     "spans": [
+      {
+       "traceId": "demo-otel",
+       "name": "chat",
+       "startTimeUnixNano": "1000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "chat"
+         }
+        },
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "gpt-x"
+         }
+        },
+        {
+         "key": "gen_ai.input.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"system\", \"content\": \"You are a support agent. Authenticate before acting.\"}, {\"role\": \"user\", \"content\": \"Show me my orders.\"}]"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"content\": \"\", \"tool_calls\": [{\"id\": \"c1\", \"function\": {\"name\": \"search_orders\", \"arguments\": \"{\\\"user_id\\\": \\\"u_unknown\\\"}\"}}]}]"
+         }
+        }
+       ]
+      },
+      {
+       "traceId": "demo-otel",
+       "name": "execute_tool search_orders",
+       "startTimeUnixNano": "2000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search_orders"
+         }
+        },
+        {
+         "key": "output.value",
+         "value": {
+          "stringValue": "Error: user not found"
+         }
+        }
+       ],
+       "status": {
+        "code": "STATUS_CODE_ERROR"
+       }
+      },
+      {
+       "traceId": "demo-otel",
+       "name": "chat",
+       "startTimeUnixNano": "3000",
+       "attributes": [
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "gpt-x"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"content\": \"\", \"tool_calls\": [{\"id\": \"c2\", \"function\": {\"name\": \"search_orders\", \"arguments\": \"{\\\"user_id\\\": \\\"u_unknown\\\"}\"}}]}]"
+         }
+        }
+       ]
+      },
+      {
+       "traceId": "demo-otel",
+       "name": "execute_tool search_orders",
+       "startTimeUnixNano": "4000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search_orders"
+         }
+        },
+        {
+         "key": "output.value",
+         "value": {
+          "stringValue": "Error: user not found"
+         }
+        }
+       ],
+       "status": {
+        "code": "STATUS_CODE_ERROR"
+       }
+      },
+      {
+       "traceId": "demo-otel",
+       "name": "chat",
+       "startTimeUnixNano": "5000",
+       "attributes": [
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "gpt-x"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"content\": \"\", \"tool_calls\": [{\"id\": \"c3\", \"function\": {\"name\": \"search_orders\", \"arguments\": \"{\\\"user_id\\\": \\\"u_unknown\\\"}\"}}]}]"
+         }
+        }
+       ]
+      },
+      {
+       "traceId": "demo-otel",
+       "name": "execute_tool search_orders",
+       "startTimeUnixNano": "6000",
+       "attributes": [
+        {
+         "key": "gen_ai.operation.name",
+         "value": {
+          "stringValue": "execute_tool"
+         }
+        },
+        {
+         "key": "gen_ai.tool.name",
+         "value": {
+          "stringValue": "search_orders"
+         }
+        },
+        {
+         "key": "output.value",
+         "value": {
+          "stringValue": "Error: user not found"
+         }
+        }
+       ],
+       "status": {
+        "code": "STATUS_CODE_ERROR"
+       }
+      },
+      {
+       "traceId": "demo-otel",
+       "name": "chat",
+       "startTimeUnixNano": "7000",
+       "attributes": [
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "gpt-x"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"content\": \"\", \"tool_calls\": [{\"id\": \"c4\", \"function\": {\"name\": \"search_orders\", \"arguments\": \"{\\\"user_id\\\": \\\"u_unknown\\\"}\"}}]}]"
+         }
+        }
+       ]
+      },
+      {
+       "traceId": "demo-otel",
+       "name": "chat",
+       "startTimeUnixNano": "8000",
+       "attributes": [
+        {
+         "key": "gen_ai.request.model",
+         "value": {
+          "stringValue": "gpt-x"
+         }
+        },
+        {
+         "key": "gen_ai.output.messages",
+         "value": {
+          "stringValue": "[{\"role\": \"assistant\", \"content\": \"I'm sorry, I am unable to complete this request.\"}]"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

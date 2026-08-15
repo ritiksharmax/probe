@@ -107,6 +107,48 @@ class TestWindows:
         assert window.n_steps == 5
 
 
+class TestAsymmetricWindows:
+    """Windows look back further than forward, because causes precede symptoms.
+
+    Measured on the AgentRx data, the nearest signal sits a median of 6-8 steps
+    *after* the annotated critical step, so a window centred on the signal
+    systematically misses it.
+    """
+
+    def test_default_looks_back_further_than_forward(self):
+        filt = EvidenceFilter()
+        assert filt.look_back > filt.look_forward
+
+    def test_window_extends_backwards_from_the_peak(self):
+        window = EvidenceFilter(look_back=8, look_forward=2, max_windows=1).windows(
+            plain(40), [event(20)]
+        )[0]
+        assert window.peak == 20
+        assert window.start == 12
+        assert window.end == 22
+
+    def test_radius_still_works_as_a_symmetric_shorthand(self):
+        filt = EvidenceFilter(radius=3)
+        assert filt.look_back == filt.look_forward == 3
+        window = filt.windows(plain(40), [event(20)])[0]
+        assert (window.start, window.end) == (17, 23)
+
+    def test_asymmetry_captures_an_earlier_cause_a_centred_window_would_miss(self):
+        """The concrete failure the asymmetry exists to fix."""
+        traj, cause, symptom = plain(40), 12, 20
+        centred = EvidenceFilter(radius=2, max_windows=1).windows(traj, [event(symptom)])[0]
+        backward = EvidenceFilter(look_back=8, look_forward=2, max_windows=1).windows(
+            traj, [event(symptom)]
+        )[0]
+        assert cause not in centred
+        assert cause in backward
+
+    def test_no_signal_fallback_uses_the_full_window_span(self):
+        windows = EvidenceFilter(look_back=8, look_forward=2).windows(plain(30), [])
+        assert windows[0].end == 30
+        assert windows[0].start == 30 - 10
+
+
 class TestRendering:
     def test_render_marks_elisions_and_keeps_step_numbers(self):
         traj = plain(30)

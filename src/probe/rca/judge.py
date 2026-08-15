@@ -31,6 +31,18 @@ from probe.trace.model import Trajectory
 
 Mode = Literal["filtered", "full"]
 
+# Measured on the AgentRx data: the nearest signal sits a median of 6 (tau-retail)
+# to 8 (Magentic-One) steps *after* the annotated root cause. Handing the judge a
+# bare list of signal locations therefore anchors it on symptoms. This caveat
+# tells it what the list actually represents.
+_SIGNAL_CAVEAT = (
+    "These are automatically detected *symptoms*, not causes. A signal marks "
+    "where a problem became visible; the step that caused it is usually EARLIER "
+    "-- typically several steps before the first signal. Use these to locate the "
+    "region of trouble, then look back from there for the decision that made the "
+    "failure inevitable."
+)
+
 SYSTEM_PROMPT = """You diagnose failures in AI agent execution traces.
 
 You are given a failed agent trajectory. Your job is to identify:
@@ -118,7 +130,12 @@ class RCAJudge:
             parts.append(f"## Domain policy (excerpt)\n{_clip(task.policy, 2000)}")
 
         if events and self.include_violations:
-            parts.append("## Violation log\n" + _render_violations(events))
+            parts.append(
+                "## Violation log\n"
+                + _SIGNAL_CAVEAT
+                + "\n"
+                + _render_violations(events)
+            )
 
         if self.mode == "filtered":
             windows = self.filter.windows(trajectory, events)
@@ -207,7 +224,7 @@ class RCAJudge:
             # the trajectory — a degraded answer still scores, and the flag keeps
             # the failure visible in the results.
             report.degraded = True
-            report.critical_step = _signal_prior_step(trajectory, events)
+            report.critical_step = self._signal_prior_step(trajectory, events)
             return report
 
         report.critical_step = _coerce_step(parsed.get("critical_step"), len(trajectory))
@@ -216,8 +233,21 @@ class RCAJudge:
         report.counterfactual = str(parsed.get("counterfactual") or "")
         report.confidence = _coerce_confidence(parsed.get("confidence"))
         if report.critical_step is None:
-            report.critical_step = _signal_prior_step(trajectory, events)
+            report.critical_step = self._signal_prior_step(trajectory, events)
         return report
+
+    def _signal_prior_step(self, trajectory: Trajectory, events: list[SignalEvent]) -> int | None:
+        """Highest signal mass, used when the judge produces nothing usable.
+
+        Uses *this judge's* evidence filter rather than a fresh default one: a
+        caller who tuned the filter would otherwise get a fallback scored against
+        different settings than the evidence the judge actually saw.
+        """
+        scores = self.filter.score_steps(trajectory, events)
+        best = max(scores, key=lambda s: (s.score, -s.index), default=None)
+        if best is None:
+            return len(trajectory) or None
+        return best.index if best.score > 0 else (len(trajectory) or None)
 
 
 # --------------------------------------------------------------------- helpers
@@ -233,17 +263,6 @@ def _render_violations(events: list[SignalEvent], limit: int = 40) -> str:
     if len(events) > limit:
         lines.append(f"- … {len(events) - limit} weaker signal(s) omitted")
     return "\n".join(lines)
-
-
-def _signal_prior_step(trajectory: Trajectory, events: list[SignalEvent]) -> int | None:
-    """Highest signal mass, used when the judge produces nothing usable."""
-    from probe.localize.evidence import EvidenceFilter as _Filter
-
-    scores = _Filter().score_steps(trajectory, events)
-    best = max(scores, key=lambda s: (s.score, -s.index), default=None)
-    if best is None:
-        return len(trajectory) or None
-    return best.index if best.score > 0 else (len(trajectory) or None)
 
 
 def _coerce_step(value: Any, n_steps: int) -> int | None:

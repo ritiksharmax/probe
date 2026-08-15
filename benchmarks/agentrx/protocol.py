@@ -119,6 +119,16 @@ class Prediction:
     latency_s: float = 0.0
     # Set when detection ran; None when the system was handed a known failure.
     predicted_failed: bool | None = None
+    # Evidence windows the judge was shown, as inclusive 1-based (start, end)
+    # pairs. Empty for unfiltered systems. Scoring uses these to report the
+    # *ceiling* on filtered accuracy: a judge cannot name a step it never saw.
+    windows: tuple[tuple[int, int], ...] = ()
+    # Set when the diagnosis could not be produced at all (transport failure,
+    # crash). A failed call scores identically to a wrong answer, so without
+    # this an outage is indistinguishable from a bad model -- which is exactly
+    # how one run here reported zeros from a dead SSH tunnel as if they were
+    # results.
+    error: str | None = None
 
     @property
     def case(self) -> int | None:
@@ -181,9 +191,14 @@ class DomainScore:
     system: str
     n_scored: int = 0
     n_missing_root_cause: int = 0
+    n_errors: int = 0
     localization: dict[int, float] = field(default_factory=dict)
     attribution: dict[str, float] = field(default_factory=dict)
     mean_step_distance: float | None = None
+    # Fraction of scored trajectories whose true critical step fell inside an
+    # evidence window. This is the hard ceiling on `exact` for a filtered system
+    # and is measurable without any LLM, so it belongs next to the accuracy.
+    window_recall: float | None = None
     detection: dict[str, float] = field(default_factory=dict)
     cost_usd: float = 0.0
     prompt_tokens: int = 0
@@ -195,12 +210,16 @@ class DomainScore:
             "domain": self.domain,
             "system": self.system,
             "n": self.n_scored,
+            "err": self.n_errors,
             "exact": self.localization.get(0),
             "±1": self.localization.get(1),
             "±3": self.localization.get(3),
             "±5": self.localization.get(5),
             "root_cause_cat": self.attribution.get("root_cause"),
             "any_cat": self.attribution.get("any"),
+            "win_rec": self.window_recall,
+            "in_tok": (round(self.prompt_tokens / self.n_scored) if self.n_scored else None),
+            "out_tok": (round(self.completion_tokens / self.n_scored) if self.n_scored else None),
             "cost_usd": round(self.cost_usd, 4),
             "latency_s": round(self.mean_latency_s, 2),
         }
@@ -221,9 +240,12 @@ def score(
     counted as wrong -- that would flatter or punish systems arbitrarily.
     """
     preds = [p for p in predictions if p.trajectory_id in ground_truth]
+    n_errors = sum(1 for p in preds if p.error)
 
     hits: dict[int, int] = dict.fromkeys(TOLERANCES, 0)
     distances: list[int] = []
+    in_window = 0
+    n_windowed = 0
     attr_hits = {"root_cause": 0, "any": 0, "earliest": 0, "terminal": 0}
     n_localizable = 0
     n_missing_rc = 0
@@ -243,6 +265,10 @@ def score(
                 if distance <= tol:
                     hits[tol] += 1
 
+        if pred.windows:
+            n_windowed += 1
+            in_window += any(start <= gt_step <= end for start, end in pred.windows)
+
         case = pred.case
         if case is not None:
             if case == gt.root_cause_case:
@@ -260,9 +286,11 @@ def score(
         system=system,
         n_scored=n_localizable,
         n_missing_root_cause=n_missing_rc,
+        n_errors=n_errors,
         localization={tol: hits[tol] / denom for tol in TOLERANCES},
         attribution={k: v / denom for k, v in attr_hits.items()},
         mean_step_distance=(sum(distances) / len(distances)) if distances else None,
+        window_recall=(in_window / n_windowed) if n_windowed else None,
         cost_usd=sum(p.cost_usd for p in preds),
         prompt_tokens=sum(p.prompt_tokens for p in preds),
         completion_tokens=sum(p.completion_tokens for p in preds),

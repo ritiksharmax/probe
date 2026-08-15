@@ -7,3 +7,5 @@ __pycache__/
 dist/
 build/
 benchmarks/agentrx/.cache/
+.local/
+benchmarks/agentrx/results/

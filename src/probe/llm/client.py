@@ -62,10 +62,55 @@ class LLMResponse:
     # these often enough that hiding them would flatter the cheap tier.
     repairs: int = 0
     stop_reason: str | None = None
+    # Reasoning a thinking model emitted before its answer. Held separately so it
+    # never reaches the JSON parser, and so the cheap tier's real token spend
+    # stays visible — thinking tokens are billed and they are not free.
+    reasoning: str = ""
 
     def json(self) -> dict[str, Any]:
         """Parse the response as JSON, tolerating prose or fences around it."""
         return parse_json(self.text)
+
+
+# Qwen3-Thinking and friends wrap reasoning in <think>…</think>. Their chat
+# template usually *pre-opens* the tag, so a completion often carries only the
+# closing one — hence both shapes below.
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_THINK_UNCLOSED_HEAD = re.compile(r"^.*?</think>", re.DOTALL | re.IGNORECASE)
+_THINK_OPEN = re.compile(r"<think>", re.IGNORECASE)
+
+
+def split_reasoning(text: str) -> tuple[str, str]:
+    """Separate a thinking model's reasoning from its actual answer.
+
+    This has to happen *before* JSON extraction, not after. A thinking model
+    deliberating about what JSON to emit will write brace-laden prose — often
+    including a rejected draft of the very object we want — and a parser pointed
+    at the raw completion happily returns the draft. That failure is silent and
+    scores as a wrong answer rather than an error, which is the worst kind.
+
+    Returns `(answer, reasoning)`; reasoning is empty when there is none.
+    """
+    if not text:
+        return "", ""
+
+    if match := _THINK_BLOCK.search(text):
+        reasoning = match.group(0)
+        return (text[: match.start()] + text[match.end() :]).strip(), reasoning.strip()
+
+    # Template pre-opened the tag: everything up to the first </think> is thinking.
+    if "</think>" in text.lower():
+        head = _THINK_UNCLOSED_HEAD.match(text)
+        if head:
+            return text[head.end() :].strip(), head.group(0).strip()
+
+    # Opened but never closed — the model was cut off mid-thought. There is no
+    # answer to salvage, and returning the reasoning as if it were one would
+    # invent a diagnosis the model never made.
+    if _THINK_OPEN.search(text):
+        return "", text.strip()
+
+    return text.strip(), ""
 
 
 class LLMClient(Protocol):
@@ -226,6 +271,8 @@ class OpenAICompatibleClient:
         api_key: str | None = None,
         timeout: float = 300.0,
         temperature: float = 0.0,
+        structured_output: bool = True,
+        max_retries: int = 4,
     ) -> None:
         self.model = model
         self.base_url = (
@@ -234,6 +281,52 @@ class OpenAICompatibleClient:
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY") or "not-needed"
         self.timeout = timeout
         self.temperature = temperature
+        # Guided decoding against a JSON schema forces the very first token to
+        # open the object, which leaves a *thinking* model no room to think --
+        # it silently becomes a non-thinking model, which is the opposite of why
+        # you would choose one. Turn this off for reasoning models and let the
+        # client split <think> from the answer instead.
+        self.structured_output = structured_output
+        # Self-hosted endpoints flake: a tunnel drops, a server restarts, a load
+        # balancer 503s. Without retries a single blip silently voids an entire
+        # benchmark run -- which is exactly how one run here lost 251 of 292
+        # calls to a dead SSH tunnel and reported zeros as if they were results.
+        self.max_retries = max_retries
+
+    _RETRY_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
+
+    def _post_with_retry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """POST with exponential backoff on transport errors and transient 5xx.
+
+        A 4xx that is not rate limiting is a bug in the request, so it is raised
+        immediately rather than retried into a long, pointless wait.
+        """
+        url = f"{self.base_url}/chat/completions"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        last: Exception | None = None
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = httpx.post(url, json=payload, headers=headers, timeout=self.timeout)
+                if response.status_code in self._RETRY_STATUS:
+                    raise httpx.HTTPStatusError(
+                        f"retryable status {response.status_code}",
+                        request=response.request,
+                        response=response,
+                    )
+                response.raise_for_status()
+                return response.json()
+            except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+                if isinstance(exc, httpx.HTTPStatusError) and (
+                    exc.response.status_code not in self._RETRY_STATUS
+                ):
+                    raise
+                last = exc
+                if attempt == self.max_retries:
+                    break
+                time.sleep(min(2.0**attempt, 30.0))
+
+        raise RuntimeError(f"{url} failed after {self.max_retries + 1} attempts: {last}") from last
 
     def complete(
         self,
@@ -254,35 +347,41 @@ class OpenAICompatibleClient:
             "max_tokens": max_tokens,
             "temperature": self.temperature,
         }
-        if schema:
+        if schema and self.structured_output:
             payload["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {"name": "response", "schema": schema, "strict": True},
             }
 
         started = time.perf_counter()
-        response = httpx.post(
-            f"{self.base_url}/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        body = response.json()
+        body = self._post_with_retry(payload)
         latency = time.perf_counter() - started
 
         choice = body["choices"][0]
+        message = choice.get("message") or {}
         usage = body.get("usage") or {}
         prompt_tokens = usage.get("prompt_tokens", 0)
         completion_tokens = usage.get("completion_tokens", 0)
+
+        content = message.get("content") or ""
+        # Servers running a reasoning parser hand back a clean `content` plus the
+        # thinking in a separate field — spelled `reasoning_content` by some
+        # builds and `reasoning` by others. Servers without a parser inline the
+        # whole <think> block in `content`. Handle all three, so correctness does
+        # not depend on how somebody configured the endpoint.
+        reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
+        if not reasoning:
+            content, reasoning = split_reasoning(content)
+
         return LLMResponse(
-            text=choice["message"].get("content") or "",
+            text=content,
             model=body.get("model", self.model),
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             latency_s=latency,
             cost_usd=price(self.model, prompt_tokens, completion_tokens),
             stop_reason=choice.get("finish_reason"),
+            reasoning=reasoning,
         )
 
 
@@ -313,15 +412,20 @@ class FakeClient:
         self.systems.append(system)
         if not self.responses:
             raise RuntimeError("FakeClient has no scripted responses")
-        text = self.responses[min(self._index, len(self.responses) - 1)]
+        raw = self.responses[min(self._index, len(self.responses) - 1)]
         self._index += 1
+        # Split <think> exactly as the HTTP clients do, so a test that scripts a
+        # reasoning-model response exercises the real code path rather than a
+        # convenient fiction.
+        text, reasoning = split_reasoning(raw)
         return LLMResponse(
             text=text,
             model=self.model,
             prompt_tokens=len(prompt) // 4,
-            completion_tokens=len(text) // 4,
+            completion_tokens=len(raw) // 4,
             latency_s=0.0,
             cost_usd=0.0,
+            reasoning=reasoning,
         )
 
 
@@ -334,5 +438,8 @@ def build_client(tier: str, model: str | None = None, **kwargs: Any) -> LLMClien
     if tier == "frontier":
         return AnthropicClient(model=model or "claude-opus-5", **kwargs)
     if tier == "small":
-        return OpenAICompatibleClient(model=model or "qwen3:4b", **kwargs)
+        name = model or "qwen3:4b"
+        # Reasoning models must be left free to emit their <think> block.
+        kwargs.setdefault("structured_output", "thinking" not in name.lower())
+        return OpenAICompatibleClient(model=name, **kwargs)
     raise ValueError(f"unknown tier {tier!r}; expected 'frontier' or 'small'")

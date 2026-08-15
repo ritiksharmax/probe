@@ -73,17 +73,35 @@ class EvidenceFilter:
 
     def __init__(
         self,
-        radius: int = 2,
-        max_windows: int = 3,
+        radius: int | None = None,
+        max_windows: int = 5,
         decay: float = 0.5,
         earliness_weight: float = 0.15,
         thought_weight: float = 0.5,
+        look_back: int = 8,
+        look_forward: int = 2,
     ) -> None:
-        self.radius = radius
+        # Windows are deliberately asymmetric. Signals fire on *consequences* --
+        # errors, refusals, stalls -- while the root cause is the earlier
+        # decision that made them inevitable. Measured on the AgentRx data, the
+        # nearest signal sits a median of 6 (tau) to 8 (Magentic-One) steps
+        # *after* the annotated critical step, so a window centred on the signal
+        # misses it. Looking back further than forward recovers substantially
+        # more of the true steps at the same token budget than widening
+        # symmetrically does.
+        if radius is not None:
+            look_back = look_forward = radius
+        self.look_back = look_back
+        self.look_forward = look_forward
         self.max_windows = max_windows
         self.decay = decay
         self.earliness_weight = earliness_weight
         self.thought_weight = thought_weight
+
+    @property
+    def radius(self) -> int:
+        """Widest reach of a window, used for neighbourhood spill."""
+        return max(self.look_back, self.look_forward)
 
     def score_steps(self, trajectory: Trajectory, events: list[SignalEvent]) -> list[StepScore]:
         """Score every step by local and neighbouring signal mass."""
@@ -138,7 +156,7 @@ class EvidenceFilter:
         n = len(trajectory)
         ranked = sorted(scores, key=lambda s: (-s.score, s.index))
         if ranked[0].score <= 0:
-            start = max(1, n - 2 * self.radius)
+            start = max(1, n - (self.look_back + self.look_forward))
             return [EvidenceWindow(start=start, end=n, score=0.0, peak=n, events=[])]
 
         claimed: set[int] = set()
@@ -149,8 +167,8 @@ class EvidenceFilter:
             if candidate.score <= 0 or candidate.index in claimed:
                 continue
 
-            start = max(1, candidate.index - self.radius)
-            end = min(n, candidate.index + self.radius)
+            start = max(1, candidate.index - self.look_back)
+            end = min(n, candidate.index + self.look_forward)
             span = set(range(start, end + 1))
             if span & claimed:
                 # Trim back to the unclaimed portion rather than overlapping.

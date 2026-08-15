@@ -178,3 +178,101 @@ def test_aggregate_seeds_reports_mean_and_spread(tau_gt):
 
 def test_aggregate_seeds_empty():
     assert aggregate_seeds([]) == {}
+
+
+class TestErrorAccounting:
+    """A failed diagnosis must never be indistinguishable from a wrong one.
+
+    A dead endpoint once turned 251 failed calls into zeros that read as results;
+    these pin the accounting that makes that visible.
+    """
+
+    def _gt(self):
+        return {
+            "t": GroundTruthEntry(
+                trajectory_id="t",
+                domain="d",
+                failures=(
+                    AnnotatedFailure(failure_id="1", step_number=5, category="System Failure"),
+                ),
+                root_cause_failure_id="1",
+            )
+        }
+
+    def test_errors_are_counted(self):
+        result = score(
+            [Prediction("t", step=None, category=None, error="connection refused")],
+            self._gt(),
+            domain="d",
+            system="s",
+        )
+        assert result.n_errors == 1
+        assert result.as_row()["err"] == 1
+
+    def test_clean_run_reports_zero_errors(self):
+        result = score([Prediction("t", step=5, category=9)], self._gt(), domain="d", system="s")
+        assert result.n_errors == 0
+        assert result.localization[0] == 1.0
+
+    def test_an_errored_prediction_still_counts_against_accuracy(self):
+        """It is a failure to diagnose, so it must not be quietly excluded."""
+        result = score(
+            [Prediction("t", step=None, category=None, error="boom")],
+            self._gt(),
+            domain="d",
+            system="s",
+        )
+        assert result.n_scored == 1
+        assert result.localization[0] == 0.0
+
+
+class TestWindowRecall:
+    def _gt(self, step=20):
+        return {
+            "t": GroundTruthEntry(
+                trajectory_id="t",
+                domain="d",
+                failures=(
+                    AnnotatedFailure(failure_id="1", step_number=step, category="System Failure"),
+                ),
+                root_cause_failure_id="1",
+            )
+        }
+
+    def test_true_step_inside_a_window(self):
+        result = score(
+            [Prediction("t", step=1, category=None, windows=((15, 25),))],
+            self._gt(),
+            domain="d",
+            system="s",
+        )
+        assert result.window_recall == 1.0
+
+    def test_true_step_outside_every_window_caps_the_ceiling(self):
+        result = score(
+            [Prediction("t", step=1, category=None, windows=((1, 5), (30, 35)))],
+            self._gt(),
+            domain="d",
+            system="s",
+        )
+        assert result.window_recall == 0.0
+
+    def test_unfiltered_systems_report_no_window_recall(self):
+        result = score(
+            [Prediction("t", step=20, category=None)], self._gt(), domain="d", system="s"
+        )
+        assert result.window_recall is None
+
+    def test_exact_accuracy_cannot_exceed_window_recall(self):
+        """The invariant that makes win_rec a ceiling worth reporting."""
+        gt = self._gt(20)
+        preds = [
+            Prediction(
+                "t", step=20, category=None, windows=((1, 5),)
+            ),  # right answer, unseen window
+        ]
+        result = score(preds, gt, domain="d", system="s")
+        assert result.window_recall == 0.0
+        # The judge happened to be right, but it could not have seen the step --
+        # which is exactly why the ceiling is reported alongside the accuracy.
+        assert result.localization[0] == 1.0

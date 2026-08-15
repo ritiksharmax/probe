@@ -9,6 +9,53 @@ uv run python benchmarks/agentrx/run.py --tier frontier         # full table (ne
 uv run python benchmarks/agentrx/run.py --tier frontier --tier small --out results.json
 ```
 
+## Serving the small tier
+
+The cheap tier is **`Qwen/Qwen3-4B-Thinking-2507-FP8`** on an H100. FP8 is not a
+compromise here: Hopper has native FP8 tensor cores, Qwen publishes the FP8
+checkpoint themselves (it is not a community quant), and at 4.85 GiB it is the
+only variant that fits — the bf16 checkpoint is 7.51 GiB and the target host had
+5.5 GiB free.
+
+```bash
+export HF_HOME=/path/with/room
+vllm serve Qwen/Qwen3-4B-Thinking-2507-FP8 \
+  --served-model-name qwen3-4b-thinking \
+  --host 127.0.0.1 --port 8010 \
+  --max-model-len 65536 --gpu-memory-utilization 0.85 --max-num-seqs 32
+
+uv run python benchmarks/agentrx/run.py \
+  --tier small --model qwen3-4b-thinking \
+  --base-url http://localhost:8010/v1 --max-tokens 16384 --concurrency 12
+```
+
+Bind the server to **loopback** and reach it over an SSH tunnel. An
+unauthenticated model server on a host with a public IP is an open proxy to
+someone else's GPU.
+
+### Three things a *thinking* model changes
+
+1. **Do not send a JSON schema.** Guided decoding forces the first token to open
+   the object, so the model never gets to think — a thinking model silently
+   becomes a non-thinking one. Measured here: 87 completion tokens with a schema
+   versus 3,633 without. `build_client` therefore disables `structured_output`
+   automatically for any model whose name contains `thinking`.
+2. **Split `<think>` before parsing JSON.** Qwen's chat template pre-opens the
+   tag, so a completion carries only the closing `</think>`. The reasoning
+   routinely contains a *draft* of the answer object — a parser pointed at the
+   raw completion returns the draft, which scores as a wrong answer rather than
+   an error. `probe.llm.client.split_reasoning` handles this, and reads
+   `reasoning_content`/`reasoning` when the server has a reasoning parser.
+3. **Budget output generously.** Thinking shares the `max_tokens` budget with the
+   answer; 16384 is a reasonable floor. Too tight and the answer is truncated
+   while the reasoning survives.
+
+### Run it concurrently
+
+`--concurrency` matters more than it looks. Serial execution leaves the GPU idle
+between calls: the first run here took over an hour at `Running: 1 reqs` while
+the server was configured for 32. At `--concurrency 12` the same work is minutes.
+
 ## Scope — read this before quoting any number
 
 The paper evaluates on **115** trajectories across three domains. **The Flash domain (42 trajectories, incident management) is not published** — it appears in neither the GitHub repo nor the Hugging Face dataset. What is publicly obtainable is:
@@ -49,6 +96,29 @@ Mirrors `agentrx/reports/analyze_metrics.py` from the upstream repo, so the numb
 - **Attribution** — four variants, because a trajectory carries several annotated failures and "correct category" is genuinely ambiguous: against the root cause, against *any* annotated failure, against the earliest, and against the terminal one.
 - **Taxonomy** — **10** categories, not 9; the tenth is `Inconclusive`. Both sides of every comparison pass through the alias rules in `probe.rca.taxonomy`, ported from upstream, because category names differ across the benchmark's own domains (τ says `Instruction Adherence Failure`, Magentic says `Instruction/Plan Adherence Failure`; both are case 1).
 - **Detection (H1)** — recall on the 29 annotated τ failures, false-positive rate on the 73 successful τ runs in `tau_dataset_full.json`, which are disjoint from every annotated failure. Magentic-One publishes no successful runs, so detection is τ-only and labelled as such. Calibrated numbers are **5-fold cross-validated** — a naive-Bayes fit reported on its own training data would be meaningless at n=29.
+- **`win_rec` (window recall)** — the fraction of trajectories whose true critical step fell inside an evidence window. This is the **hard ceiling on `exact` for any filtered system**: a judge cannot name a step it was never shown. It needs no LLM to compute, so it is reported next to the accuracy it bounds.
+
+## The filtering problem, measured
+
+The first honest result out of this harness is a negative one about PROBE's own central bet.
+
+Signals are good at *detection* and poor at *localization*. Measured against ground truth on all 73 trajectories:
+
+| | τ-retail | Magentic-One |
+|---|---:|---:|
+| a signal fires **exactly on** the true critical step | 6.9% | 15.9% |
+| a signal fires within ±2 | 24.1% | 25.0% |
+| median distance from true step to nearest signal | **6 steps** | **8 steps** |
+| trajectories with no signals at all | 5 | 1 |
+
+Signals fire on *consequences* — the tool error, the refusal, the stall at the end — while the annotated root cause is the earlier decision that made them inevitable. A window centred on a signal therefore misses the step it is meant to capture.
+
+Two consequences, both acted on:
+
+1. **Windows are now asymmetric** (`look_back=8`, `look_forward=2`), because causes precede symptoms. At equal token budget this beats widening symmetrically: `back=8,fwd=2` reaches 58.6% window recall on τ versus 51.7% for a symmetric `radius=6`.
+2. **The original default was badly mistuned.** `radius=2, max_windows=3` compressed to 16–21% of steps but had a ceiling of only **27.6% / 36.4%** — it was throwing away the answer roughly 70% of the time. The current default reaches **58.6% / 65.9%**.
+
+Note the honest caveat: those filter parameters were chosen by looking at this benchmark's ground truth, so they carry some selection bias. Window recall is reported on every run precisely so that the ceiling stays visible rather than being folded silently into an accuracy number.
 
 ### Step indexing
 

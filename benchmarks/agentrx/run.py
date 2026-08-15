@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from fetch import AGENTRX_SHA, fetch  # noqa: E402
 from protocol import (  # noqa: E402
     GroundTruthEntry,
     Prediction,
+    aggregate_seeds,
     load_ground_truth,
     score,
     score_detection,
@@ -102,50 +104,87 @@ def run_detection(paths) -> dict:
     }
 
 
-def run_system(system, domain: Domain, limit: int | None = None) -> list[Prediction]:
-    """Diagnose every annotated trajectory in a domain."""
+def run_system(
+    system, domain: Domain, limit: int | None = None, concurrency: int = 8
+) -> list[Prediction]:
+    """Diagnose every annotated trajectory in a domain.
+
+    Trajectories are independent, and a served model handles many requests at
+    once — running them one at a time leaves the GPU idle between calls and turns
+    a minutes-long benchmark into an hours-long one. Threads are the right tool
+    because the work is entirely HTTP wait.
+    """
     ids = [t for t in domain.ground_truth if t in domain.trajectories]
     if limit:
         ids = ids[:limit]
 
-    # Carriage-return progress only makes sense on a terminal; piped to a file it
-    # produces one unreadable mega-line.
     interactive = sys.stderr.isatty()
+    done = 0
 
-    predictions = []
-    for index, tid in enumerate(ids, start=1):
-        report = system(domain.trajectories[tid])
-        predictions.append(
-            Prediction(
-                trajectory_id=tid,
-                step=report.critical_step,
-                category=report.category_case,
-                prompt_tokens=report.prompt_tokens,
-                completion_tokens=report.completion_tokens,
-                cost_usd=report.cost_usd,
-                latency_s=report.latency_s,
-            )
+    def diagnose(tid: str) -> Prediction:
+        nonlocal done
+        try:
+            report = system(domain.trajectories[tid])
+        except Exception as exc:  # noqa: BLE001 - one bad trace must not sink the run
+            print(f"    {tid}: {exc}", file=sys.stderr)
+            return Prediction(trajectory_id=tid, step=None, category=None, error=str(exc))
+        finally:
+            done += 1
+            if interactive:
+                print(f"    [{done}/{len(ids)}]".ljust(40), end="\r", file=sys.stderr)
+        return Prediction(
+            trajectory_id=tid,
+            step=report.critical_step,
+            category=report.category_case,
+            prompt_tokens=report.prompt_tokens,
+            completion_tokens=report.completion_tokens,
+            cost_usd=report.cost_usd,
+            latency_s=report.latency_s,
+            windows=tuple(report.windows),
         )
-        if interactive:
-            print(f"    [{index}/{len(ids)}] {tid[:40]}".ljust(60), end="\r", file=sys.stderr)
+
+    if concurrency <= 1:
+        predictions = [diagnose(t) for t in ids]
+    else:
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            predictions = list(pool.map(diagnose, ids))
+
     if interactive:
-        print(" " * 60, end="\r", file=sys.stderr)
+        print(" " * 44, end="\r", file=sys.stderr)
     return predictions
 
 
 def format_table(rows: list[dict]) -> str:
     """Fixed-width comparison table, so results are readable without rich."""
-    headers = ["domain", "system", "n", "exact", "±1", "±3", "±5", "cat(rc)", "cat(any)", "$", "s"]
+    headers = [
+        "domain",
+        "system",
+        "n",
+        "err",
+        "exact",
+        "±1",
+        "±3",
+        "±5",
+        "cat(rc)",
+        "cat(any)",
+        "win_rec",
+        "$",
+        "s",
+    ]
     keys = [
         "domain",
         "system",
         "n",
+        "err",
         "exact",
         "±1",
         "±3",
         "±5",
         "root_cause_cat",
         "any_cat",
+        "win_rec",
+        "in_tok",
+        "out_tok",
         "cost_usd",
         "latency_s",
     ]
@@ -154,8 +193,10 @@ def format_table(rows: list[dict]) -> str:
         value = row.get(key)
         if value is None:
             return "-"
-        if key in {"exact", "±1", "±3", "±5", "root_cause_cat", "any_cat"}:
+        if key in {"exact", "±1", "±3", "±5", "root_cause_cat", "any_cat", "win_rec"}:
             return f"{value:.3f}"
+        if key in {"in_tok", "out_tok"}:
+            return f"{value:,.0f}"
         if key == "cost_usd":
             return f"{value:.4f}"
         if key == "latency_s":
@@ -175,8 +216,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the AgentRx benchmark.")
     parser.add_argument("--tier", action="append", default=[], choices=["frontier", "small"])
     parser.add_argument("--model", default=None, help="override the model for the tier")
+    parser.add_argument(
+        "--base-url", default=None, help="OpenAI-compatible endpoint for the small tier"
+    )
+    parser.add_argument("--max-tokens", type=int, default=8192, help="output budget per judge call")
     parser.add_argument("--system", action="append", default=[], choices=sorted(SYSTEMS))
     parser.add_argument("--limit", type=int, default=None, help="cap trajectories per domain")
+    parser.add_argument(
+        "--concurrency", type=int, default=8, help="parallel judge calls (1 = serial)"
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        default=1,
+        help="repeat each configuration N times and report mean +/- std",
+    )
     parser.add_argument("--detection-only", action="store_true", help="H1 only; no LLM calls")
     parser.add_argument("--out", type=Path, default=None, help="write results JSON here")
     args = parser.parse_args()
@@ -217,7 +271,10 @@ def main() -> int:
 
     for tier in tiers:
         llm_systems = [n for n in system_names if SYSTEMS[n].uses_llm]
-        client = build_client(tier, model=args.model) if llm_systems else None
+        client_kwargs = {}
+        if tier == "small" and args.base_url:
+            client_kwargs["base_url"] = args.base_url
+        client = build_client(tier, model=args.model, **client_kwargs) if llm_systems else None
         label = getattr(client, "model", "none")
         print(f"== Localization + attribution — tier={tier} model={label} ==")
 
@@ -225,13 +282,38 @@ def main() -> int:
             spec = SYSTEMS[name]
             if not spec.uses_llm and name in done_without_llm:
                 continue
-            system = build_system(spec, client, tier=tier)
+            system = build_system(spec, client, tier=tier, max_tokens=args.max_tokens)
             display = name if not spec.uses_llm else f"{name}/{tier}"
+            # An LLM-free system is deterministic, so repeating it is pure waste.
+            seeds = 1 if not spec.uses_llm else max(1, args.seeds)
             for domain in domains:
-                print(f"  {display} on {domain.name}…", file=sys.stderr)
-                preds = run_system(system, domain, limit=args.limit)
-                result = score(preds, domain.ground_truth, domain=domain.name, system=display)
-                rows.append(result.as_row())
+                runs = []
+                for seed in range(seeds):
+                    label = f"  {display} on {domain.name}"
+                    if seeds > 1:
+                        label += f" (seed {seed + 1}/{seeds})"
+                    print(f"{label}…", file=sys.stderr)
+                    preds = run_system(
+                        system, domain, limit=args.limit, concurrency=args.concurrency
+                    )
+                    runs.append(
+                        score(preds, domain.ground_truth, domain=domain.name, system=display)
+                    )
+                row = runs[0].as_row()
+                if len(runs) > 1:
+                    # Judges are non-deterministic; a single run's accuracy is a
+                    # point estimate, and at n=29 one trajectory moves `exact` by
+                    # 0.034. Report the spread rather than implying precision.
+                    spread = aggregate_seeds(runs)
+                    row["exact"] = spread["localization"][0]["mean"]
+                    row["±1"] = spread["localization"][1]["mean"]
+                    row["±3"] = spread["localization"][3]["mean"]
+                    row["±5"] = spread["localization"][5]["mean"]
+                    row["root_cause_cat"] = spread["attribution"]["root_cause"]["mean"]
+                    row["any_cat"] = spread["attribution"]["any"]["mean"]
+                    row["exact_std"] = spread["localization"][0]["std"]
+                    row["seeds"] = seeds
+                rows.append(row)
             if not spec.uses_llm:
                 done_without_llm.add(name)
 
@@ -239,6 +321,13 @@ def main() -> int:
 
     results["rows"] = rows
     print(format_table(rows))
+
+    total_errors = sum(r.get("err") or 0 for r in rows)
+    if total_errors:
+        print(
+            f"\n*** WARNING: {total_errors} diagnoses failed outright and are scored as "
+            "wrong. These numbers are NOT valid -- fix the endpoint and re-run. ***"
+        )
     print(
         "\nScope: Flash (42 trajectories) is unpublished; these are the 73 public "
         "trajectories, reported per domain and NOT comparable to the paper's "

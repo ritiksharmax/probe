@@ -31,21 +31,38 @@ console = Console()
 err = Console(stderr=True)
 
 
+ADAPTERS = ("jsonl", "otel", "langfuse", "langsmith", "agentrx")
+
+
 def _load(path: Path, adapter: str) -> list[Trajectory]:
     """Load trajectories through the requested adapter."""
     if adapter == "jsonl":
         return read_jsonl(path)
+    if adapter == "otel":
+        from probe.trace.adapters.otel import load_otel
+
+        return load_otel(path)
+    if adapter == "langfuse":
+        from probe.trace.adapters.langfuse import load_langfuse
+
+        return load_langfuse(path)
+    if adapter == "langsmith":
+        from probe.trace.adapters.langsmith import load_langsmith
+
+        return load_langsmith(path)
     if adapter == "agentrx":
         from probe.trace.adapters.agentrx import load_magentic, load_tau
 
         return load_magentic(path) if path.is_dir() else load_tau(path)
-    raise typer.BadParameter(f"unknown adapter {adapter!r}")
+    raise typer.BadParameter(f"unknown adapter {adapter!r}; expected one of {', '.join(ADAPTERS)}")
 
 
 @app.command()
 def analyze(
     trace: Path = typer.Argument(..., exists=True, help="Trace file or directory"),
-    adapter: str = typer.Option("jsonl", "--adapter", "-a", help="jsonl | agentrx"),
+    adapter: str = typer.Option(
+        "jsonl", "--adapter", "-a", help="jsonl | otel | langfuse | langsmith | agentrx"
+    ),
     tier: str = typer.Option("frontier", "--tier", "-t", help="frontier | small"),
     model: str | None = typer.Option(None, "--model", "-m", help="Override the model"),
     full: bool = typer.Option(
@@ -110,7 +127,9 @@ def analyze(
 @app.command()
 def detect(
     trace: Path = typer.Argument(..., exists=True, help="Trace file or directory"),
-    adapter: str = typer.Option("jsonl", "--adapter", "-a", help="jsonl | agentrx"),
+    adapter: str = typer.Option(
+        "jsonl", "--adapter", "-a", help="jsonl | otel | langfuse | langsmith | agentrx"
+    ),
     threshold: float = typer.Option(0.5, "--threshold", help="Failure confidence threshold"),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show the signals behind each call"

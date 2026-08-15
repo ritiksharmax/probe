@@ -251,3 +251,75 @@ def test_report_render_is_readable():
 
 def test_llm_response_json_helper():
     assert LLMResponse(text='{"a": 1}', model="m").json() == {"a": 1}
+
+
+class TestDegradedFallback:
+    """Regression tests for the judge's fallback path."""
+
+    def test_fallback_uses_the_judges_own_filter_not_a_fresh_default(self):
+        """A caller who tuned the filter must get a fallback scored against it."""
+        from probe.localize.evidence import EvidenceFilter
+
+        traj = failing_trajectory(40)
+        wide = RCAJudge(
+            FakeClient(responses=["not json"]),
+            evidence_filter=EvidenceFilter(look_back=0, look_forward=0, thought_weight=1.0),
+            max_repairs=0,
+        )
+        report = wide(traj)
+        assert report.degraded
+        # With no neighbourhood spill the peak is the step that actually fired,
+        # which is the tool error at step 4 rather than a smeared neighbour.
+        assert report.critical_step == 4
+
+    def test_fallback_still_returns_a_step_when_nothing_fires(self):
+        traj = Trajectory(
+            trajectory_id="quiet",
+            steps=[Step(index=i, role="assistant", content=f"x{i}") for i in range(1, 6)],
+        )
+        report = RCAJudge(FakeClient(responses=["nope"]), max_repairs=0)(traj)
+        assert report.degraded
+        assert report.critical_step == 5
+
+
+class TestFakeClientRealism:
+    def test_fake_client_splits_think_blocks_like_the_http_clients(self):
+        """Otherwise tests exercise a convenient fiction instead of the real path."""
+        client = FakeClient(responses=['reasoning here</think>{"critical_step": 3, "category": 1}'])
+        response = client.complete("x")
+        assert response.text == '{"critical_step": 3, "category": 1}'
+        assert "reasoning here" in response.reasoning
+
+    def test_judge_parses_a_scripted_thinking_response(self):
+        raw = 'Maybe {"critical_step": 99}? no.\n</think>\n' + answer(step=4, category=4)
+        report = RCAJudge(FakeClient(responses=[raw]))(failing_trajectory())
+        assert report.critical_step == 4  # not the 99 from the discarded draft
+        assert not report.degraded
+
+
+class TestSignalCaveat:
+    """The violation log must frame signals as symptoms, not causes.
+
+    Measured on the benchmark data, the nearest signal sits a median of 6-8 steps
+    *after* the annotated root cause, so a bare list of signal locations anchors
+    the judge on the wrong steps. Adding this framing more than doubled
+    exact-match localization on tau-retail (0.103 -> 0.241).
+    """
+
+    def test_violation_log_explains_that_signals_are_symptoms(self):
+        traj = failing_trajectory()
+        judge = RCAJudge(FakeClient(responses=[answer()]), mode="full")
+        from probe.signals.base import default_signals, run_signals
+
+        prompt, _, _ = judge.build_prompt(traj, run_signals(traj, default_signals()))
+        assert "symptoms" in prompt
+        assert "EARLIER" in prompt
+
+    def test_no_caveat_when_the_violation_log_is_suppressed(self):
+        traj = failing_trajectory()
+        judge = RCAJudge(FakeClient(responses=[answer()]), mode="full", include_violations=False)
+        from probe.signals.base import default_signals, run_signals
+
+        prompt, _, _ = judge.build_prompt(traj, run_signals(traj, default_signals()))
+        assert "Violation log" not in prompt
+        assert "symptoms" not in prompt
